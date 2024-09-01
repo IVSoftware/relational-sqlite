@@ -13,13 +13,15 @@
             Spacing="25">
             <Image
                 Source="dotnet_bot.png"
-                HeightRequest="185"
+                HeightRequest="50"
                 Aspect="AspectFit"
                 SemanticProperties.Description="dot net bot in a race car number eight" />
             <Button
-                Text="Test" 
+                Text="Delete" 
+                IsVisible="{Binding ButtonVisible}"
                 HorizontalOptions="Fill"
                 Command="{Binding TestCommand}"/>
+            <Label Text="Groups"/>
             <CollectionView 
                 ItemsSource="{Binding Groups}"
                 BackgroundColor="Azure"
@@ -44,6 +46,34 @@
                                     VerticalOptions="EndAndExpand"
                                     HorizontalOptions="FillAndExpand" />
                             </VerticalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+            <Label Text="Sites"/>
+            <CollectionView 
+                ItemsSource="{Binding Sites}"
+                BackgroundColor="Azure"
+                SelectionMode="Single"
+                SelectedItem="{Binding SelectedGroup}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <VerticalStackLayout
+                                Margin="1,1,1,5"
+                                BackgroundColor="WhiteSmoke">
+                            <Label 
+                                    Text="{Binding Title}" 
+                                    FontAttributes="Bold" 
+                                    FontSize="18" 
+                                    TextColor="DarkBlue" 
+                                    Padding="5,5,0,5"
+                                    HorizontalOptions="Start" 
+                                    VerticalOptions="Center"/>
+                            <BoxView
+                                    HeightRequest="1"
+                                    Color="LightGray"
+                                    VerticalOptions="EndAndExpand"
+                                    HorizontalOptions="FillAndExpand" />
+                        </VerticalStackLayout>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>

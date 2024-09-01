@@ -1,5 +1,6 @@
 ﻿using SQLite;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -12,21 +13,82 @@ namespace relational_sqlite
     }
     class MainPageBinding : INotifyPropertyChanged
     {
+        // For testing purposes:
+        // Using an in-memory SQLite database instead of .db file
+        SQLiteConnection InMemoryDatabase 
+        { 
+            get
+            {
+                if(_singleton == null)
+                {
+                    _singleton = new SQLiteConnection(":memory:");
+                    InMemoryDatabase.CreateTable<Group>();
+                    InMemoryDatabase.CreateTable<Site>();
+                    var groupA = new Group { GrpName = "GroupA" };
+                    InMemoryDatabase.Insert(groupA);
+                    InMemoryDatabase.Insert(new Site { Title = "GroupA.Site1", GrpId = groupA.Id });
+                    InMemoryDatabase.Insert(new Site { Title = "GroupA.Site2", GrpId = groupA.Id });
+
+                    var groupB = new Group { GrpName = "GroupB" };
+                    InMemoryDatabase.Insert(groupB);
+                    InMemoryDatabase.Insert(new Site { Title = "GroupB.Site1", GrpId = groupB.Id });
+                    InMemoryDatabase.Insert(new Site { Title = "GroupB.Site2", GrpId = groupB.Id });
+                }
+                return _singleton;
+            }
+        } 
+        SQLiteConnection? _singleton = null;
+
         public MainPageBinding()
         {
             TestCommand = new Command(OnTest);
+            Groups.CollectionChanged += (sender, e) =>
+            {
+                switch (e.Action)
+                {
+                    case NotifyCollectionChangedAction.Remove:
+                        if (e.OldItems != null)
+                        {
+                            foreach (Group group in e.OldItems)
+                            {
+                                // MAUI seems to leave group selected even after it's removed
+                                // from the collection, which seems weird but let's fix that
+                                // (for the benefit of button visibility binding)
+                                if(Equals(group, SelectedGroup))
+                                {
+                                    SelectedGroup = null;
+                                }
+                                InMemoryDatabase.Delete(group);
+                                foreach(
+                                    var site 
+                                    in InMemoryDatabase.Table<Site>()
+                                    .Where(_=>_.GrpId == group.Id)
+                                    .ToArray())
+                                {
+                                    Sites.Remove(site);
+                                    InMemoryDatabase.Delete(site);
+                                }
+                            }
+                        }
+                        break;
+                }
+            };
+            foreach (Group group in InMemoryDatabase.Table<Group>())
+            {
+                Groups.Add(group);
+            }
+            foreach (Site site in InMemoryDatabase.Table<Site>())
+            {
+                Sites.Add(site);
+            }
         }
         public ICommand TestCommand { get; private set; }
-        private void OnTest(object o)
-        {
-            Groups.Remove(SelectedGroup);
-        }
-        public ObservableCollection<Group> Groups { get; } = new ObservableCollection<Group>
-        {
-            new Group{ GrpName = "GroupA" },
-            new Group{ GrpName = "GroupB" },
-        };
-        public Group SelectedGroup
+
+        // If an item is selected, delete it
+        private void OnTest(object o) => Groups.Remove(SelectedGroup ?? new());
+        public ObservableCollection<Group> Groups { get; } = new ObservableCollection<Group>();
+        public ObservableCollection<Site> Sites { get; } = new ObservableCollection<Site>();
+        public Group? SelectedGroup
         {
             get => _selectedGroup;
             set
@@ -39,34 +101,55 @@ namespace relational_sqlite
             }
         }
 
-        private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => 
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        Group? _selectedGroup = default;
 
-        Group _selectedGroup = default;
+        public bool ButtonVisible => SelectedGroup is not null;
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            switch (propertyName)
+            {
+                case nameof(SelectedGroup):
+                    OnPropertyChanged(nameof(ButtonVisible));
+                    break;
+            }
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
     }
-    public class Group
-    {
-        [PrimaryKey, AutoIncrement]
-        public long Id { get; set; }
-        public string? GrpName { get; set; }
-        public override string ToString() => GrpName ?? "Default";
 
-        public async Task DeleteAsync()
-        {
-        }
+    [Table("groups")]
+    public class Group : IEquatable<Group>
+    {
+        // Consider making this key unique at the point of
+        // instantiation rather than the point of insertion.
+        [PrimaryKey]
+        public string Id { get; set; } = Guid.NewGuid().ToString().ToUpper();
+        [Unique]
+        public string? GrpName { get; set; }
+
+        public bool Equals(Group? other) =>
+            Id == other?.Id;
+        public override string ToString() => GrpName ?? "Default";
     }
 
-    public class Sites
+    [Table("site")]
+    public class Site : IEquatable<Site>
     {
-        [PrimaryKey, AutoIncrement]
-        public long Id { get; set; }
+        // Consider making this key unique at the point of
+        // instantiation rather than the point of insertion.
+        [PrimaryKey]
+        public string Id { get; set; } = Guid.NewGuid().ToString().ToUpper();
+        [Unique]
         public string? Title { get; set; }
         public string? SiteAddr { get; set; }
-        public long GrpId { get; set; }    // The Id number matching the Group Id
+        public string? GrpId { get; set; }    // The Id number matching the Group Id
         public string? Notes { get; set; }
+
+        public bool Equals(Site? other) =>
+            Id == other?.Id;
+
         public override string ToString() => Title ?? "Default";
     }
-
 }
