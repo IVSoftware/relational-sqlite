@@ -55,6 +55,12 @@ class MainPageBinding : INotifyPropertyChanged
         // Query the database to populate the CollectionView controls on MainView
         foreach (Group group in InMemoryDatabase.Table<Group>()) Groups.Add(group);
     }
+    // If an item is selected, delete it
+    public ICommand TestCommand { get; private set; }
+    private void OnTest(object o) => Groups.Remove(SelectedGroup ?? new());
+
+    public ObservableCollection<Group> Groups { get; } = new ObservableCollection<Group>();
+    public ObservableCollection<Site> Sites { get; } = new ObservableCollection<Site>();
 
     #region T E S T I N G
     // For testing purposes:
@@ -68,8 +74,10 @@ class MainPageBinding : INotifyPropertyChanged
                 _singleton = new SQLiteConnection(":memory:");
                 InMemoryDatabase.CreateTable<Group>();
                 InMemoryDatabase.CreateTable<Site>();
+
                 var groupA = new Group { GrpName = "GroupA" };
                 InMemoryDatabase.Insert(groupA);
+                // NOTE !!! This will 'not' work with auto-incremented IDs!  I have changed Id to a guid.
                 InMemoryDatabase.Insert(new Site { Title = "GroupA.Site1", GrpId = groupA.Id });
                 InMemoryDatabase.Insert(new Site { Title = "GroupA.Site2", GrpId = groupA.Id });
 
@@ -83,6 +91,9 @@ class MainPageBinding : INotifyPropertyChanged
     } 
     SQLiteConnection? _singleton = null;
     #endregion T E S T I N G
+    .
+    .
+    .
 }
 ```
 
