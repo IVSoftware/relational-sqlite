@@ -1,49 +1,94 @@
-One could make a case for defining this behavior in the bound context, deleting the relational `Site` objects as a response to `CollectionChanged.Remove` events fired by the `Groups` collection.
+As I understand it, if a UI action deletes a `Group` object from the view, the relational `Site` objects should be permanently deleted from the database (or perhaps just removed from visibility in the view). 
+
+[![delete action][1]][1]
+
+___
+
+Either way, one could make a case for defining this behavior in the bound context, adding and removing the relational `Site` objects in their view as a response to `CollectionChanged.Add` `CollectionChanged.Remove` events fired by the `Groups` collection.
 
 ```
-public MainPageBinding()
+// <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+using SQLite;
+class MainPageBinding : INotifyPropertyChanged
 {
-    TestCommand = new Command(OnTest);
-    Groups.CollectionChanged += (sender, e) =>
+    public MainPageBinding()
     {
-        switch (e.Action)
+        TestCommand = new Command(OnTest);
+        Groups.CollectionChanged += (sender, e) =>
         {
-            case NotifyCollectionChangedAction.Remove:
-                if (e.OldItems != null)
-                {
-                    foreach (Group group in e.OldItems)
+            switch (e.Action)
+            {
+                case NotifyCollectionChangedAction.Remove:
+                    if (e.OldItems != null)
                     {
-                        // MAUI seems to leave group selected even after it's removed
-                        // from the collection, which seems weird but let's fix that
-                        // (for the benefit of button visibility binding)
-                        if(Equals(group, SelectedGroup))
+                        foreach (Group group in e.OldItems)
                         {
-                            SelectedGroup = null;
-                        }
-                        InMemoryDatabase.Delete(group);
-                        foreach(
-                            var site 
-                            in InMemoryDatabase.Table<Site>()
-                            .Where(_=>_.GrpId == group.Id)
-                            .ToArray())
-                        {
-                            Sites.Remove(site);
-                            InMemoryDatabase.Delete(site);
+                            InMemoryDatabase.Delete(group);
+                            foreach(
+                                var site 
+                                in InMemoryDatabase.Table<Site>()
+                                .Where(_=>_.GrpId == group.Id))
+                            {
+                                Sites.Remove(site);
+                                InMemoryDatabase.Delete(site);
+                            }
                         }
                     }
-                }
-                break;
+                    break;
+                case NotifyCollectionChangedAction.Add:
+                    if (e.NewItems != null)
+                    {
+                        foreach (Group group in e.NewItems)
+                        {
+                            foreach (
+                                Site site in
+                                InMemoryDatabase.Table<Site>()
+                                .Where(_ => _.GrpId == group.Id))
+                            {
+                                Sites.Add(site);
+                            }
+                        }
+                    }
+                    break;
+            }
+        };
+        // Query the database to populate the CollectionView controls on MainView
+        foreach (Group group in InMemoryDatabase.Table<Group>()) Groups.Add(group);
+    }
+
+    #region T E S T I N G
+    // For testing purposes:
+    // Using an in-memory SQLite database instead of .db file
+    SQLiteConnection InMemoryDatabase 
+    { 
+        get
+        {
+            if(_singleton == null)
+            {
+                _singleton = new SQLiteConnection(":memory:");
+                InMemoryDatabase.CreateTable<Group>();
+                InMemoryDatabase.CreateTable<Site>();
+                var groupA = new Group { GrpName = "GroupA" };
+                InMemoryDatabase.Insert(groupA);
+                InMemoryDatabase.Insert(new Site { Title = "GroupA.Site1", GrpId = groupA.Id });
+                InMemoryDatabase.Insert(new Site { Title = "GroupA.Site2", GrpId = groupA.Id });
+
+                var groupB = new Group { GrpName = "GroupB" };
+                InMemoryDatabase.Insert(groupB);
+                InMemoryDatabase.Insert(new Site { Title = "GroupB.Site1", GrpId = groupB.Id });
+                InMemoryDatabase.Insert(new Site { Title = "GroupB.Site2", GrpId = groupB.Id });
+            }
+            return _singleton;
         }
-    };
-    // Query the database to populate the CollectionView controls on MainView
-    foreach (Group group in InMemoryDatabase.Table<Group>()) Groups.Add(group);
-    foreach (Site site in InMemoryDatabase.Table<Site>())Sites.Add(site);
+    } 
+    SQLiteConnection? _singleton = null;
+    #endregion T E S T I N G
 }
 ```
 
 ___
 
-Now, using an auto-increment id seemed to add an extra element of danger because it's not assigned until the Group is inserted. For this demo, I went ahead and used a guid instead so that the `Id` is unique from the moment of creation.
+
 
 ```
 [Table("groups")]
@@ -75,3 +120,6 @@ public class Site : IEquatable<Site>
     public override string ToString() => Title ?? "Default";
 }
 ```
+
+
+  [1]: https://i.sstatic.net/3aokWjlD.png
