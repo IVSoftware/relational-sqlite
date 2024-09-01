@@ -13,6 +13,7 @@ namespace relational_sqlite
     }
     class MainPageBinding : INotifyPropertyChanged
     {
+        #region T E S T I N G
         // For testing purposes:
         // Using an in-memory SQLite database instead of .db file
         SQLiteConnection InMemoryDatabase 
@@ -38,6 +39,7 @@ namespace relational_sqlite
             }
         } 
         SQLiteConnection? _singleton = null;
+        #endregion T E S T I N G
 
         public MainPageBinding()
         {
@@ -62,8 +64,7 @@ namespace relational_sqlite
                                 foreach(
                                     var site 
                                     in InMemoryDatabase.Table<Site>()
-                                    .Where(_=>_.GrpId == group.Id)
-                                    .ToArray())
+                                    .Where(_=>_.GrpId == group.Id))
                                 {
                                     Sites.Remove(site);
                                     InMemoryDatabase.Delete(site);
@@ -71,16 +72,25 @@ namespace relational_sqlite
                             }
                         }
                         break;
+                    case NotifyCollectionChangedAction.Add:
+                        if (e.NewItems != null)
+                        {
+                            foreach (Group group in e.NewItems)
+                            {
+                                foreach (
+                                    Site site in
+                                    InMemoryDatabase.Table<Site>()
+                                    .Where(_ => _.GrpId == group.Id))
+                                {
+                                    Sites.Add(site);
+                                }
+                            }
+                        }
+                        break;
                 }
             };
-            foreach (Group group in InMemoryDatabase.Table<Group>())
-            {
-                Groups.Add(group);
-            }
-            foreach (Site site in InMemoryDatabase.Table<Site>())
-            {
-                Sites.Add(site);
-            }
+            // Query the database to populate the CollectionView controls on MainView
+            foreach (Group group in InMemoryDatabase.Table<Group>()) Groups.Add(group);
         }
         public ICommand TestCommand { get; private set; }
 
